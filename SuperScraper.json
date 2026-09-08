@@ -1,0 +1,1073 @@
+{
+  "name": "SuperScraper",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "775622d1-b560-4939-9db1-c3568ba8a2f3",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "position": [
+        7200,
+        4160
+      ],
+      "typeVersion": 1.1,
+      "webhookId": "scraper-telegram-webhook",
+      "credentials": {
+        "telegramApi": {
+          "id": "oul8kn5OhuztPZWS",
+          "name": "Telegram - Willy Scraper"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Detect what the user sent: a URL, a file (sitemap.xml or urllist), or nothing usable.\nconst message = $input.first().json.message;\nconst text = message.text || message.caption || '';\nconst chatId = message.chat.id;\n\nconst doc = message.document;\nconst hasFile = !!doc;\n\nlet mode = 'unknown';\nlet fileId = null;\nlet fileName = null;\n\nif (hasFile) {\n  fileId = doc.file_id;\n  fileName = doc.file_name || 'unknown';\n  const ext = fileName.split('.').pop().toLowerCase();\n\n  if (ext === 'xml' || fileName.toLowerCase().includes('sitemap')) {\n    mode = 'sitemap';\n  } else if (['txt', 'md', 'csv'].includes(ext)) {\n    mode = 'urllist';\n  } else {\n    mode = 'unsupported_file';\n  }\n} else {\n  const urlRegex = /(https?:\\/\\/[^\\s]+)/gi;\n  const matches = text.match(urlRegex);\n  mode = (matches && matches.length > 0) ? 'single' : 'no_url';\n}\n\nlet url = null;\nif (mode === 'single') {\n  const urlRegex = /(https?:\\/\\/[^\\s]+)/gi;\n  const matches = text.match(urlRegex);\n  url = matches[0].replace(/[.,;:!?)]+$/, '');\n}\n\nreturn {\n  json: { mode, chatId, text, url, fileId, fileName }\n};\n"
+      },
+      "id": "ec84b325-2661-4e08-8deb-52467b101d09",
+      "name": "Detect Input Mode",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        7424,
+        4160
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.mode }}",
+                    "rightValue": "single",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "1987b9fd-d1ba-484b-b4fd-a0b2c4f2a9df"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.mode }}",
+                    "rightValue": "sitemap",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "ec09d33a-c035-4907-9844-634b59e0dae6"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.mode }}",
+                    "rightValue": "urllist",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c7440dbb-818a-40a6-87d4-42e8281bd29d"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.mode }}",
+                    "rightValue": "no_url",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "7b87b7da-5639-426e-adb7-8f0c9fa6e013"
+                  },
+                  {
+                    "leftValue": "={{ $json.mode }}",
+                    "rightValue": "unsupported_file",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "f26eeed5-21c0-4b91-8ece-b037e766af3e"
+                  }
+                ],
+                "combinator": "or"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4d55ba5b-0641-4042-a8dc-44bfad45b37b",
+      "name": "Route by Mode",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        7648,
+        4128
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "❌ Send me:\n• A URL to scrape\n• A .txt/.md file with URLs (one per line)\n• A sitemap.xml file",
+        "additionalFields": {}
+      },
+      "id": "e7c65ba1-ccd9-4447-88c7-8947d5eb8c55",
+      "name": "Reply: Invalid Input",
+      "type": "n8n-nodes-base.telegram",
+      "position": [
+        7872,
+        4352
+      ],
+      "typeVersion": 1.2,
+      "webhookId": "4f6554f8-b17b-46fd-999b-7b31f1cdc923",
+      "credentials": {
+        "telegramApi": {
+          "id": "oul8kn5OhuztPZWS",
+          "name": "Telegram - Willy Scraper"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "=⏳ Scraping: {{ $json.url }}",
+        "additionalFields": {}
+      },
+      "id": "cbf45117-d1ba-492e-98a1-b483b2dd9b1d",
+      "name": "Reply: Processing Single",
+      "type": "n8n-nodes-base.telegram",
+      "position": [
+        7872,
+        3872
+      ],
+      "typeVersion": 1.2,
+      "webhookId": "4fc0ef15-c2d0-4dc4-b369-f3367e38bcd5",
+      "credentials": {
+        "telegramApi": {
+          "id": "oul8kn5OhuztPZWS",
+          "name": "Telegram - Willy Scraper"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Detect Input Mode').first().json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Accept",
+              "value": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            },
+            {
+              "name": "Accept-Language",
+              "value": "en-US,en;q=0.5"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "66594ac2-7c94-482f-a5ec-494cb507237c",
+      "name": "Fetch HTML (Single)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        8096,
+        3872
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "single-status",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              },
+              "leftValue": "={{ $json.statusCode || 999 }}",
+              "rightValue": 400
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "09391c68-c194-4a27-b30e-821e1614ec43",
+      "name": "HTTP OK (Single)?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        8320,
+        3872
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Detect Input Mode').first().json.chatId }}",
+        "text": "=✅ Scraped {{ $('Detect Input Mode').first().json.url }}\n📏 {{ ($json.data || '').length }} chars\n📄 Sending markdown file...",
+        "additionalFields": {}
+      },
+      "id": "9c8d86bc-b9a2-4290-99ee-4dd65f64410a",
+      "name": "Reply: Single Done",
+      "type": "n8n-nodes-base.telegram",
+      "position": [
+        8992,
+        3776
+      ],
+      "typeVersion": 1.2,
+      "webhookId": "6bc2c5f5-8267-428c-83c6-996950ea1226",
+      "credentials": {
+        "telegramApi": {
+          "id": "oul8kn5OhuztPZWS",
+          "name": "Telegram - Willy Scraper"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Detect Input Mode').first().json.chatId }}",
+        "text": "=❌ Failed: {{ $('Detect Input Mode').first().json.url }}\nStatus: {{ $json.statusCode || 'n/a' }}",
+        "additionalFields": {}
+      },
+      "id": "ef098a45-fc89-4a9d-9d97-ce83585e643f",
+      "name": "Reply: Single Failed",
+      "type": "n8n-nodes-base.telegram",
+      "position": [
+        8544,
+        3968
+      ],
+      "typeVersion": 1.2,
+      "webhookId": "ef115308-955c-451c-89fe-11e31738bbb8",
+      "credentials": {
+        "telegramApi": {
+          "id": "oul8kn5OhuztPZWS",
+          "name": "Telegram - Willy Scraper"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getFile"
+      },
+      "id": "639410f3-c090-40d1-908d-ae1745005262",
+      "name": "Download File",
+      "type": "n8n-nodes-base.telegram",
+      "position": [
+        7872,
+        4160
+      ],
+      "typeVersion": 1.2,
+      "webhookId": "e060554c-c4dd-44b7-822e-9c778aa3c9df",
+      "credentials": {
+        "telegramApi": {
+          "id": "oul8kn5OhuztPZWS",
+          "name": "Telegram - Willy Scraper"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/file/bot{{ $env.TELEGRAM_BOT_TOKEN }}/{{ $json.file_path }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "5a9fed13-acba-441b-98f2-86fe52769e2b",
+      "name": "Fetch File Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        8096,
+        4160
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse URLs out of a sitemap.xml or text-with-URLs file.\n// Detects sitemap-index files (rejects them) so we don't try to scrape XML as HTML.\nconst content = $input.first().json.data;\nconst detect = $('Detect Input Mode').first().json;\nconst mode = detect.mode;\nconst chatId = detect.chatId;\nconst fileName = detect.fileName;\n\nlet urls = [];\nlet warning = null;\n\nif (mode === 'sitemap') {\n  // Reject sitemap index (contains <sitemap>...<loc>nested.xml</loc>...</sitemap>)\n  if (/<sitemapindex\\b/i.test(content)) {\n    return {\n      json: {\n        chatId,\n        fileName,\n        totalUrls: 0,\n        urls: [],\n        error: 'sitemap_index',\n        message: 'This is a sitemap index file. Send the individual child sitemap files instead.'\n      }\n    };\n  }\n  const locRegex = /<loc>([^<]+)<\\/loc>/gi;\n  let m;\n  while ((m = locRegex.exec(content)) !== null) {\n    urls.push(m[1].trim());\n  }\n} else {\n  const lines = content.split(/[\\r\\n]+/);\n  for (const line of lines) {\n    const t = line.trim();\n    if (!t || t.startsWith('#')) continue;\n    const um = t.match(/(https?:\\/\\/[^\\s\\)\\]]+)/);\n    if (um) urls.push(um[1].replace(/[.,;:!?)]+$/, ''));\n  }\n}\n\nurls = [...new Set(urls)];\n\nif (urls.length === 0 && !warning) {\n  return {\n    json: {\n      chatId, fileName, totalUrls: 0, urls: [],\n      error: 'empty', message: 'No URLs found in the file.'\n    }\n  };\n}\n\nreturn { json: { chatId, fileName, totalUrls: urls.length, urls } };\n"
+      },
+      "id": "1e58f3ce-9303-4eb5-9666-0cd20e4e24d9",
+      "name": "Parse URLs from File",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        8320,
+        4160
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "parse-error",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              },
+              "leftValue": "={{ $json.error }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "678785b2-efd3-41fe-a29c-1640a63d98a8",
+      "name": "Parse Error?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        8544,
+        4160
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "=⚠️ {{ $json.message }}",
+        "additionalFields": {}
+      },
+      "id": "8e8eefa2-a857-4df0-96e6-5b150e7aec8b",
+      "name": "Reply: Parse Error",
+      "type": "n8n-nodes-base.telegram",
+      "position": [
+        8768,
+        4064
+      ],
+      "typeVersion": 1.2,
+      "webhookId": "c4a10376-10ee-4db9-b1cb-87c5f34ecb34",
+      "credentials": {
+        "telegramApi": {
+          "id": "oul8kn5OhuztPZWS",
+          "name": "Telegram - Willy Scraper"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "=📋 Found {{ $json.totalUrls }} URLs in {{ $json.fileName }}\n\n⏳ Starting batch scrape (with 2s delay between requests)...",
+        "additionalFields": {}
+      },
+      "id": "75c72e15-467e-4d24-a255-169fd03fad72",
+      "name": "Reply: Batch Starting",
+      "type": "n8n-nodes-base.telegram",
+      "position": [
+        8768,
+        4256
+      ],
+      "typeVersion": 1.2,
+      "webhookId": "84d896c7-a3f3-455b-b86c-e0fd30d319da",
+      "credentials": {
+        "telegramApi": {
+          "id": "oul8kn5OhuztPZWS",
+          "name": "Telegram - Willy Scraper"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Per-chat state isolation. staticData is workflow-global, so we key by chatId\n// to prevent two concurrent batches (or two users) from colliding.\nconst data = $input.first().json;\nconst chatId = data.chatId;\n\nconst staticData = $getWorkflowStaticData('global');\nstaticData.runs = staticData.runs || {};\n\n// Always overwrite this chat's slot - any prior run for this chat is stale by definition\nstaticData.runs[chatId] = {\n  processed: 0,\n  succeeded: 0,\n  failed: [],\n  totalUrls: data.totalUrls,\n  startTime: Date.now()\n};\n\n// Emit one item per URL for SplitInBatches to consume\nreturn data.urls.map((url, i) => ({\n  json: {\n    url,\n    index: i + 1,\n    totalUrls: data.totalUrls,\n    chatId\n  }\n}));\n"
+      },
+      "id": "7281fd17-1e67-4dec-8b47-b50b2cb8fa57",
+      "name": "Init Tracking",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        8992,
+        4256
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "b5fd1fbc-1fad-4b4f-ba65-365966b9f96d",
+      "name": "Process One at a Time",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [
+        9216,
+        4256
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "id": "b3af913f-d476-4ed7-959a-7145c62dc0d4",
+      "name": "Rate Limiter (2s)",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        9440,
+        4192
+      ],
+      "typeVersion": 1.1,
+      "webhookId": "rate-limit-webhook"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Accept",
+              "value": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            },
+            {
+              "name": "Accept-Language",
+              "value": "en-US,en;q=0.5"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "90190100-5724-496c-bbf3-fa41e252adcb",
+      "name": "Fetch HTML (Batch)",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        9664,
+        4192
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "status-ok",
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              },
+              "leftValue": "={{ $json.statusCode || 999 }}",
+              "rightValue": 400
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "105c9b9f-87c6-4866-b200-4056b18805b9",
+      "name": "HTTP OK?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        9888,
+        4192
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Increment per-chat counters and decide whether to emit a progress update.\nconst item = $('Process One at a Time').first().json;\nconst chatId = item.chatId;\n\nconst staticData = $getWorkflowStaticData('global');\nstaticData.runs = staticData.runs || {};\nconst run = staticData.runs[chatId];\n\n// If state was cleared (eg. cancelled/restarted), pass through without crashing.\nif (!run) {\n  return { json: { chatId, processed: 0, succeeded: 0, failed: [], totalUrls: 0,\n                   shouldSendUpdate: false, elapsedTime: '' } };\n}\n\nrun.processed++;\nrun.succeeded++;\n\nconst total = run.totalUrls;\n// Aim for ~5 progress messages across the run, capped at every 10 items, min every 1.\nconst interval = Math.max(1, Math.min(10, Math.floor(total / 5)));\nconst shouldSendUpdate = run.processed % interval === 0 && run.processed < total;\n\nconst elapsed = Math.floor((Date.now() - run.startTime) / 1000);\nconst mins = Math.floor(elapsed / 60);\nconst secs = elapsed % 60;\nconst elapsedTime = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;\n\nreturn {\n  json: {\n    chatId,\n    processed: run.processed,\n    succeeded: run.succeeded,\n    failed: run.failed,\n    totalUrls: total,\n    shouldSendUpdate,\n    elapsedTime\n  }\n};\n"
+      },
+      "id": "00f5e8cc-9b32-47d2-9c41-28ed37b1e7b9",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        10112,
+        4096
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Increment per-chat counters and decide whether to emit a progress update.\nconst item = $('Process One at a Time').first().json;\nconst chatId = item.chatId;\n\nconst staticData = $getWorkflowStaticData('global');\nstaticData.runs = staticData.runs || {};\nconst run = staticData.runs[chatId];\n\n// If state was cleared (eg. cancelled/restarted), pass through without crashing.\nif (!run) {\n  return { json: { chatId, processed: 0, succeeded: 0, failed: [], totalUrls: 0,\n                   shouldSendUpdate: false, elapsedTime: '' } };\n}\n\nrun.processed++;\nrun.failed.push(item.url);\n\nconst total = run.totalUrls;\n// Aim for ~5 progress messages across the run, capped at every 10 items, min every 1.\nconst interval = Math.max(1, Math.min(10, Math.floor(total / 5)));\nconst shouldSendUpdate = run.processed % interval === 0 && run.processed < total;\n\nconst elapsed = Math.floor((Date.now() - run.startTime) / 1000);\nconst mins = Math.floor(elapsed / 60);\nconst secs = elapsed % 60;\nconst elapsedTime = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;\n\nreturn {\n  json: {\n    chatId,\n    processed: run.processed,\n    succeeded: run.succeeded,\n    failed: run.failed,\n    totalUrls: total,\n    shouldSendUpdate,\n    elapsedTime\n  }\n};\n"
+      },
+      "id": "505fe91b-388b-41ff-a10c-37f11e3b9a16",
+      "name": "Log Failure",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        10112,
+        4288
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "update-check",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ $json.shouldSendUpdate }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b96e9419-0f7e-44b8-94ca-9395e00e0bc2",
+      "name": "Send Update?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        10336,
+        4256
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "=✅ {{ $json.processed }}/{{ $json.totalUrls }} complete ({{ $json.elapsedTime || 'calculating...' }})...",
+        "additionalFields": {}
+      },
+      "id": "848660a3-3a5d-47be-8fcf-7b8d83aa6e9a",
+      "name": "Reply: Progress",
+      "type": "n8n-nodes-base.telegram",
+      "position": [
+        10560,
+        4336
+      ],
+      "typeVersion": 1.2,
+      "webhookId": "ae17a504-f1b1-47ce-89c8-58439de775d1",
+      "credentials": {
+        "telegramApi": {
+          "id": "oul8kn5OhuztPZWS",
+          "name": "Telegram - Willy Scraper"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// SplitInBatches output 0 (\"done\") emits the original items. Pull chatId from the first,\n// then read final stats from per-chat state and build the completion message.\nconst first = $input.first().json;\nconst chatId = first.chatId;\n\nconst staticData = $getWorkflowStaticData('global');\nconst run = staticData.runs?.[chatId];\n\nif (!run) {\n  return { json: { chatId, processed: 0, succeeded: 0, totalUrls: 0,\n                   elapsedTime: '0s', failedSection: '', failed: [] } };\n}\n\nconst elapsed = Math.floor((Date.now() - run.startTime) / 1000);\nconst mins = Math.floor(elapsed / 60);\nconst secs = elapsed % 60;\nconst elapsedTime = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;\n\n// Truncate failed URL list by char budget, not item count (Telegram limit = 4096).\nconst BUDGET = 3000;\nlet failedSection = '';\nif (run.failed.length > 0) {\n  const lines = [];\n  let chars = 0, shown = 0;\n  for (const u of run.failed) {\n    if (chars + u.length + 1 > BUDGET) break;\n    lines.push(u);\n    chars += u.length + 1;\n    shown++;\n  }\n  const remaining = run.failed.length - shown;\n  failedSection = `\\n❌ Failed: ${run.failed.length}\\n\\nFailed URLs:\\n${lines.join('\\n')}` +\n    (remaining > 0 ? `\\n... and ${remaining} more` : '');\n}\n\nreturn {\n  json: {\n    chatId,\n    processed: run.processed,\n    succeeded: run.succeeded,\n    failed: run.failed,\n    totalUrls: run.totalUrls,\n    elapsedTime,\n    failedSection\n  }\n};\n"
+      },
+      "id": "80061463-cdc4-4503-aef9-31be338631a9",
+      "name": "Build Final Stats",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        9440,
+        4000
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "=🎉 Batch complete! ({{ $json.elapsedTime }})\n\n✅ Succeeded: {{ $json.succeeded }}/{{ $json.totalUrls }}{{ $json.failedSection }}",
+        "additionalFields": {}
+      },
+      "id": "8f71ff2d-31f2-4c2c-97db-0b5394057ebe",
+      "name": "Reply: Complete",
+      "type": "n8n-nodes-base.telegram",
+      "position": [
+        9664,
+        4000
+      ],
+      "typeVersion": 1.2,
+      "webhookId": "f3500a6e-f76f-4bcd-94eb-a80218758fbf",
+      "credentials": {
+        "telegramApi": {
+          "id": "oul8kn5OhuztPZWS",
+          "name": "Telegram - Willy Scraper"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Per-chat cleanup - leave other concurrent runs alone.\nconst chatId = $input.first().json.chatId;\nconst staticData = $getWorkflowStaticData('global');\nif (staticData.runs && staticData.runs[chatId]) {\n  delete staticData.runs[chatId];\n}\nreturn { json: { chatId, cleared: true } };\n"
+      },
+      "id": "c18be763-ee61-4922-b9e4-a7e4935c4c4b",
+      "name": "Clear Tracking",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        9888,
+        4000
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Strip HTML to readable markdown for downstream use.\n// Not a full converter - good enough for text extraction.\nconst html = $json.data || '';\nconst sourceUrl = $('Detect Input Mode').first().json.url;\nconst chatId = $('Detect Input Mode').first().json.chatId;\n\nfunction htmlToMarkdown(input) {\n  let s = input;\n\n  // Remove non-content blocks entirely\n  s = s.replace(/<script\\b[^>]*>[\\s\\S]*?<\\/script>/gi, '');\n  s = s.replace(/<style\\b[^>]*>[\\s\\S]*?<\\/style>/gi, '');\n  s = s.replace(/<noscript\\b[^>]*>[\\s\\S]*?<\\/noscript>/gi, '');\n  s = s.replace(/<svg\\b[^>]*>[\\s\\S]*?<\\/svg>/gi, '');\n  s = s.replace(/<!--[\\s\\S]*?-->/g, '');\n\n  // Capture title for the doc header before stripping\n  const titleMatch = s.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);\n  const title = titleMatch ? titleMatch[1].trim().replace(/\\s+/g, ' ') : '';\n\n  // Strip <head> contents (after grabbing title)\n  s = s.replace(/<head\\b[^>]*>[\\s\\S]*?<\\/head>/gi, '');\n\n  // Headings\n  for (let lvl = 1; lvl <= 6; lvl++) {\n    const re = new RegExp(`<h${lvl}\\\\b[^>]*>([\\\\s\\\\S]*?)</h${lvl}>`, 'gi');\n    s = s.replace(re, (_, t) => '\\n\\n' + '#'.repeat(lvl) + ' ' + t.trim() + '\\n\\n');\n  }\n\n  // Links: [text](url)\n  s = s.replace(/<a\\b[^>]*href=[\"']([^\"']+)[\"'][^>]*>([\\s\\S]*?)<\\/a>/gi,\n                (_, href, t) => `[${t.trim()}](${href})`);\n\n  // Emphasis\n  s = s.replace(/<(strong|b)\\b[^>]*>([\\s\\S]*?)<\\/\\1>/gi, '**$2**');\n  s = s.replace(/<(em|i)\\b[^>]*>([\\s\\S]*?)<\\/\\1>/gi, '*$2*');\n  s = s.replace(/<code\\b[^>]*>([\\s\\S]*?)<\\/code>/gi, '`$1`');\n\n  // Lists\n  s = s.replace(/<li\\b[^>]*>([\\s\\S]*?)<\\/li>/gi, '- $1\\n');\n\n  // Paragraphs / breaks\n  s = s.replace(/<\\/p>/gi, '\\n\\n');\n  s = s.replace(/<br\\s*\\/?>/gi, '\\n');\n  s = s.replace(/<\\/div>/gi, '\\n');\n\n  // Strip remaining tags\n  s = s.replace(/<[^>]+>/g, '');\n\n  // Decode common entities\n  const entities = {\n    '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>',\n    '&quot;': '\"', '&#39;': \"'\", '&apos;': \"'\", '&mdash;': '—',\n    '&ndash;': '–', '&hellip;': '…', '&copy;': '©', '&reg;': '®'\n  };\n  for (const [e, ch] of Object.entries(entities)) {\n    s = s.replace(new RegExp(e, 'g'), ch);\n  }\n  // Numeric entities\n  s = s.replace(/&#(\\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)));\n\n  // Collapse whitespace\n  s = s.replace(/[ \\t]+/g, ' ');\n  s = s.replace(/\\n[ \\t]+/g, '\\n');\n  s = s.replace(/\\n{3,}/g, '\\n\\n');\n\n  return { markdown: s.trim(), title };\n}\n\nconst { markdown, title } = htmlToMarkdown(html);\n\n// Build the file: front-matter + content\nconst scrapedAt = new Date().toISOString();\nconst fileBody =\n  `---\\n` +\n  `source: ${sourceUrl}\\n` +\n  `title: ${title}\\n` +\n  `scraped_at: ${scrapedAt}\\n` +\n  `---\\n\\n` +\n  (title ? `# ${title}\\n\\n` : '') +\n  markdown;\n\n// Filename derived from URL (safe chars only)\nfunction urlToFileName(u) {\n  try {\n    const url = new URL(u);\n    const host = url.hostname.replace(/^www\\./, '');\n    let path = url.pathname.replace(/\\/$/, '').replace(/\\//g, '_') || '_root';\n    return `${host}${path}.md`.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);\n  } catch {\n    return `scrape_${Date.now()}.md`;\n  }\n}\nconst fileName = urlToFileName(sourceUrl);\n\n// Emit json + binary so the Telegram sendDocument node can attach the file\nreturn {\n  json: { chatId, sourceUrl, fileName, charCount: markdown.length, title },\n  binary: {\n    data: {\n      data: Buffer.from(fileBody, 'utf8').toString('base64'),\n      mimeType: 'text/markdown',\n      fileName,\n      fileExtension: 'md'\n    }\n  }\n};\n"
+      },
+      "id": "9ebce043-18e0-4478-a692-e680d700f8f7",
+      "name": "HTML to Markdown",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        8544,
+        3776
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "sendDocument",
+        "chatId": "={{ $json.chatId }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "=📄 {{ $json.fileName }} ({{ $json.charCount }} chars)"
+        }
+      },
+      "id": "bcf17bba-efa9-42b2-bd39-024b7860bb56",
+      "name": "Send Markdown File",
+      "type": "n8n-nodes-base.telegram",
+      "position": [
+        8768,
+        3776
+      ],
+      "typeVersion": 1.2,
+      "webhookId": "8f980715-afd2-430b-868e-8e117f656910",
+      "credentials": {
+        "telegramApi": {
+          "id": "oul8kn5OhuztPZWS",
+          "name": "Telegram - Willy Scraper"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Detect Input Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Input Mode": {
+      "main": [
+        [
+          {
+            "node": "Route by Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Mode": {
+      "main": [
+        [
+          {
+            "node": "Reply: Processing Single",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Download File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Download File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: Invalid Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply: Processing Single": {
+      "main": [
+        [
+          {
+            "node": "Fetch HTML (Single)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch HTML (Single)": {
+      "main": [
+        [
+          {
+            "node": "HTTP OK (Single)?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP OK (Single)?": {
+      "main": [
+        [
+          {
+            "node": "HTML to Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: Single Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download File": {
+      "main": [
+        [
+          {
+            "node": "Fetch File Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch File Content": {
+      "main": [
+        [
+          {
+            "node": "Parse URLs from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse URLs from File": {
+      "main": [
+        [
+          {
+            "node": "Parse Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Error?": {
+      "main": [
+        [
+          {
+            "node": "Reply: Parse Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reply: Batch Starting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply: Batch Starting": {
+      "main": [
+        [
+          {
+            "node": "Init Tracking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init Tracking": {
+      "main": [
+        [
+          {
+            "node": "Process One at a Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process One at a Time": {
+      "main": [
+        [
+          {
+            "node": "Build Final Stats",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rate Limiter (2s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limiter (2s)": {
+      "main": [
+        [
+          {
+            "node": "Fetch HTML (Batch)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch HTML (Batch)": {
+      "main": [
+        [
+          {
+            "node": "HTTP OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP OK?": {
+      "main": [
+        [
+          {
+            "node": "Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Success": {
+      "main": [
+        [
+          {
+            "node": "Send Update?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Failure": {
+      "main": [
+        [
+          {
+            "node": "Send Update?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Update?": {
+      "main": [
+        [
+          {
+            "node": "Reply: Progress",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process One at a Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply: Progress": {
+      "main": [
+        [
+          {
+            "node": "Process One at a Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Final Stats": {
+      "main": [
+        [
+          {
+            "node": "Reply: Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply: Complete": {
+      "main": [
+        [
+          {
+            "node": "Clear Tracking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML to Markdown": {
+      "main": [
+        [
+          {
+            "node": "Send Markdown File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Markdown File": {
+      "main": [
+        [
+          {
+            "node": "Reply: Single Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "f25ac8bb-2ea6-4cd4-8c67-5bdbb591d19e",
+  "meta": {
+    "instanceId": "bd1d45be773d3fd37b05ff49cbd93e4ab985ff1232b71162722c74ef6450c4dd"
+  },
+  "nodeGroups": [],
+  "id": "IzisqzcIPc3WLwp9",
+  "tags": [
+    {
+      "updatedAt": "2025-12-24T00:36:30.958Z",
+      "createdAt": "2025-12-24T00:36:30.958Z",
+      "id": "2GTBrsRZBfSAagcP",
+      "name": "ready"
+    }
+  ]
+}
